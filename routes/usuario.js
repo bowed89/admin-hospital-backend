@@ -16,9 +16,19 @@ var Usuario = require('../models/usuario');
 
 app.get('/', (req, res, next) => {
 
+    // 'limit' muestra que se cargara solo 5 registros del total de la coleccion que hay en la bd.
+    // 'desde' ingresamos por teclado cuantos registros se van a cargar luego de los 5 primeros registros que se muestran
+    // 'skip' muestran los siguientes registros que ingresamos por teclado ...
+
+    var desde = req.query.desde || 0;
+    desde = Number(desde);
+
     Usuario.find({}, 'nombre email img role')
+        .skip(desde)
+        .limit(5)
         .exec(
             (err, usuarios) => {
+
                 if (err) {
                     return res.status(500).json({
                         ok: false,
@@ -27,10 +37,17 @@ app.get('/', (req, res, next) => {
                     });
                 }
 
-                res.status(200).json({
-                    ok: true,
-                    usuarios: usuarios
+                // 'count' nos muestra el total de registros que hay en la collection 
+
+                Usuario.count({}, (err, conteo) => {
+                    res.status(200).json({
+                        ok: true,
+                        usuarios: usuarios,
+                        total: conteo
+                    });
                 });
+
+
             });
 });
 
