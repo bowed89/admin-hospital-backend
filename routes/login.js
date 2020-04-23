@@ -4,7 +4,6 @@ var jwt = require('jsonwebtoken');
 
 var seed = require('../config/config').SEED;
 
-
 var app = express();
 
 var Usuario = require('../models/usuario');
@@ -13,6 +12,21 @@ var Usuario = require('../models/usuario');
 var CLIENT_ID = require('../config/config').CLIENT_ID;
 const { OAuth2Client } = require('google-auth-library');
 const client = new OAuth2Client(CLIENT_ID);
+
+const mdAutenticacion = require('../middlewares/autenticacion');
+
+// =========================================
+//          AUTENTICACIÓN DE GOOGLE
+// =========================================
+app.get('/renuevatoken', mdAutenticacion.verificaToken, (req, res) => {
+
+    var token = jwt.sign({ usuario: req.usuario }, seed, { expiresIn: 14400 });
+
+    res.status(200).json({
+        ok: true,
+        token: token
+    });
+});
 
 
 
@@ -87,7 +101,8 @@ app.post('/google', async(req, res) => {
                     ok: true,
                     usuario: usuarioDB,
                     token: token,
-                    id: usuarioDB._id
+                    id: usuarioDB._id,
+                    menu: obtenerMenu(usuarioDB.role)
                 });
             }
         } else {
@@ -108,7 +123,9 @@ app.post('/google', async(req, res) => {
                     ok: true,
                     usuario: usuarioDB,
                     token: token,
-                    id: usuarioDB._id
+                    id: usuarioDB.id,
+                    menu: obtenerMenu(usuarioDB.role)
+
                 });
 
             });
@@ -116,11 +133,6 @@ app.post('/google', async(req, res) => {
         }
     });
 });
-
-
-
-
-
 
 
 // =========================================
@@ -134,7 +146,7 @@ app.post('/', (req, res) => {
 
     var body = req.body;
 
-    Usuario.findOne({ email: body.email }, (err, usuarioBD) => {
+    Usuario.findOne({ email: body.email }, (err, usuario) => {
 
         if (err) {
             return res.status(500).json({
@@ -144,7 +156,7 @@ app.post('/', (req, res) => {
             });
         }
 
-        if (!usuarioBD) {
+        if (!usuario) {
             return res.status(400).json({
                 ok: false,
                 mensaje: 'Credenciales incorrectas - email',
@@ -152,7 +164,7 @@ app.post('/', (req, res) => {
             });
         }
 
-        if (!bcrypt.compareSync(body.password, usuarioBD.password)) {
+        if (!bcrypt.compareSync(body.password, usuario.password)) {
             return res.status(400).json({
                 ok: false,
                 mensaje: 'Credenciales incorrectas - password',
@@ -161,21 +173,55 @@ app.post('/', (req, res) => {
         }
 
         // no muestra el password en la respuesta ...
-        usuarioBD.password = ':)';
+        usuario.password = ':)';
 
         // Crear un token donde expira en 4 horas
         // el seed es como una clave que valida el token cuando se genera...
-        var token = jwt.sign({ usuario: usuarioBD }, seed, { expiresIn: 14400 });
+        var token = jwt.sign({ usuario: usuario }, seed, { expiresIn: 14400 });
 
         res.status(200).json({
             ok: true,
-            usuario: usuarioBD,
+            usuario: usuario,
             token: token,
-            id: usuarioBD._id
+            id: usuario._id,
+            menu: obtenerMenu(usuario.role)
         });
     });
 
 
 });
+
+function obtenerMenu(ROLE) {
+    var menu = [{
+            titulo: 'Principal',
+            icono: 'mdi mdi-gauge',
+            submenu: [
+                { titulo: 'Dashboard', url: '/dashboard' },
+                { titulo: 'ProgressBar', url: '/progress' },
+                { titulo: 'Gráficas', url: '/graficas1' },
+                { titulo: 'Promesas', url: '/promesas' },
+                { titulo: 'Rxjs', url: '/rxjs' }
+            ]
+        },
+        {
+            titulo: 'Mantenimientos',
+            icono: 'mdi mdi-folder-lock-open',
+            submenu: [
+                // { titulo: 'Usuarios', url: '/usuarios' },
+                { titulo: 'Hospitales', url: '/hospitales' },
+                { titulo: 'Medicos', url: '/medicos' }
+            ]
+        }
+    ];
+
+    if (ROLE === 'ADMIN_ROLE') {
+
+        // con unshift ponemos a usuarios al principio del submenu
+        menu[1].submenu.unshift({ titulo: 'Usuarios', url: '/usuarios' });
+
+    }
+    console.log('role-->', ROLE);
+    return menu;
+}
 
 module.exports = app;
